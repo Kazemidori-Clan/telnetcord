@@ -1,0 +1,2 @@
+# telnetcord
+TelnetでDiscordクライアントを実装しようか
