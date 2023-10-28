@@ -171,7 +171,7 @@ def handle_client(client_socket, client_address):
             # helpコマンド
             if command == "help\r\n" or command == "HELP\r\n":
                 telnet_session.write(
-                    "bye: Telnetチャットから切断します。\r\n"
+                    "bye: Telnetcordから切断します。\r\n"
                     "jp on/off: 日本語変換機能を有効/無効にします。\r\n"
                     "charcode: 文字コードを変更します。\r\n"
                     "list channel/guild: チャンネル、またはギルドの一覧を表示します。\r\n"
@@ -230,7 +230,7 @@ def handle_client(client_socket, client_address):
                 telnet_session.write("> ".encode(charcode))
             # versionコマンド
             elif command == "version\r\n" or command == "VERSION\r\n":
-                telnet_session.write(f"Telnetチャット Version {ver}\r\n".encode(charcode))
+                telnet_session.write(f"Telnetcord Version {ver}\r\n".encode(charcode))
                 telnet_session.write("> ".encode(charcode))
             # whatnewコマンド
             elif command == "whatnew\r\n" or command == "WHATNEW\r\n":
