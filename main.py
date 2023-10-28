@@ -47,15 +47,6 @@ def msg_proc(message: str):
     return result
 
 
-def streaming(message):
-    global flag
-    log = open("chat.log", "a")
-    log.write(message)
-    log.close()
-    print(message.replace("\r\n", ""))
-    flag = 1
-
-
 # クライアントとの通信を処理するスレッド
 def handle_client(client_socket, client_address):
     # Telnetセッションを開始
