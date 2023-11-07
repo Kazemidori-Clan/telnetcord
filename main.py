@@ -17,7 +17,7 @@ import traceback
 # Telnetサーバーのホストとポート
 HOST = '0.0.0.0'  # ホストIPアドレス
 PORT = 23  # ポート番号（任意のポートを選択）
-ver = "0.1"  # バージョン
+ver = "0.2"  # バージョン
 
 
 # Ctrl+Cで終了する
@@ -82,12 +82,13 @@ def handle_client(client_socket, client_address):
         command = telnet_session.read_until(b"\r\n")
         command = bytes_proc(command)
         token = command.decode(charcode).replace("\r\n", "")
+        token = msg_proc(token)
         if token == "" or token == "\r\n":
             continue
-        else:
-            token = command.decode(charcode).replace("\r\n", "")
+        elif re.match(r"[\w-]{26}\.[\w-]{6}\.[\w-]{38}", token):
             break
-    token = msg_proc(token)
+        else:
+            continue
     r = requests.get("https://discord.com/api/v9/users/@me", headers={"authorization": token})
     result = r.json()
     username = result["username"]
@@ -97,31 +98,47 @@ def handle_client(client_socket, client_address):
         while True:
             # heartbeat interval sleep
             await asyncio.sleep((interval / 1000))
-            await ws.send(json.dumps({"op": 1, "d": "null"}))
-            continue
+            try:
+                await ws.send(json.dumps({"op": 1, "d": "null"}))
+                continue
+            except websockets.exceptions.ConnectionClosedOK:
+                # 無視 websocketsのバグだと思ってる
+                pass
+            except websockets.exceptions.ConnectionClosedError:
+                # 無視 websocketsのバグだと思ってる
+                pass
 
     # 受信処理
     async def receive(ws):
         while True:
             try:
                 data = json.loads(await ws.recv())
+                if data['t'] == "MESSAGE_CREATE":
+                    message = data['d']
+                    try:
+                        if message['channel_id'] == channelid:
+                            if message['author']['discriminator'] == "0":
+                                username = message['author']['username']
+                            else:
+                                username = f"{message['author']['username']}#{message['author']['discriminator']}"
+                            message = f"\r{username}: {message['content']}\r\n"
+                            telnet_session.write(message.encode(charcode))
+                            telnet_session.write(f"> ".encode(charcode))
+                    except NameError:
+                        pass
+                elif data['op'] == 7:
+                    # 再接続
+                    telnet_session.write("Discord Gatewayから切断されました。再接続します。".encode(charcode))
+                    await runner()
+                    await ws.send(json.dumps({"op": 1001, "d": "null"}))
+                    return
+                # print(data)
             except websockets.exceptions.ConnectionClosedOK:
-                telnet_session.write("\rGatewayから切断されました。\r\n".encode(charcode))
-                telnet_session.write(f"> ".encode(charcode))
-            if data['t'] == "MESSAGE_CREATE":
-                message = data['d']
-                try:
-                    if message['channel_id'] == channelid:
-                        if message['author']['discriminator'] == "0":
-                            username = message['author']['username']
-                        else:
-                            username = f"{message['author']['username']}#{message['author']['discriminator']}"
-                        message = f"\r{username}: {message['content']}\r\n"
-                        telnet_session.write(message.encode(charcode))
-                        telnet_session.write(f"> ".encode(charcode))
-                        # print(data)
-                except NameError:
-                    pass
+                # 無視 websocketsのバグだと思ってる
+                pass
+            except websockets.exceptions.ConnectionClosedError:
+                # 無視 websocketsのバグだと思ってる
+                pass
 
     async def runner():
         identify = {
@@ -235,8 +252,9 @@ def handle_client(client_socket, client_address):
             # whatnewコマンド
             elif command == "whatnew\r\n" or command == "WHATNEW\r\n":
                 telnet_session.write(f"Telnetcord Version {ver}\r\n"
-                                     "・全てはここから始まった\r\n"
-                                     "・基本的な機能を実装\r\n".encode(charcode))
+                                     "・トークン判定を正規表現で対応\r\n"
+                                     "・微量の修正\r\n"
+                                     "・Gatewayの実装をTelnetチャットv0.4.8に追従\r\n".encode(charcode))
                 telnet_session.write("> ".encode(charcode))
             # selectコマンド
             elif command.startswith("select") or command.startswith("SELECT"):
@@ -327,6 +345,7 @@ def handle_client(client_socket, client_address):
                         # ヘボン式ローマ字がなんちゃら
                         temp_msg = temp_msg.replace("si", "shi")
                         temp_msg = temp_msg.replace("wi", "whi")
+                        temp_msg = temp_msg.replace("we", "whe")
                         msg = jaconv.alphabet2kana(temp_msg)
                         dicRes = requests.get(
                             f"http://www.google.com/transliterate?langpair=ja-Hira|ja&text={msg}").json()
@@ -357,7 +376,8 @@ def handle_client(client_socket, client_address):
             #print(f"{client_address[0]} が切断しました。")
             #break
 
-
+print("\x1b[H\x1b[J")
+print(f"Telnetcord Version {ver}")
 signal.signal(signal.SIGINT, signal_handler)
 # ソケットを作成してバインド
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -370,7 +390,7 @@ while True:
         time.sleep(10)
         continue
 server_socket.listen(10)  # 接続を待ち受ける最大クライアント数
-print(f"Telnetcord Version {ver}")
+print(f"{PORT}番ポートでTelnetチャットが起動しました\n")
 
 while True:
     client_socket, client_address = server_socket.accept()
